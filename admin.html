@@ -31,7 +31,7 @@
                     <th rowspan="2">운용사</th><th rowspan="2">펀드명</th><th rowspan="2">규모(억)</th><th rowspan="2">지분율</th><th rowspan="2">수익자분</th>
                     <th colspan="4" class="bg-pastel-blue">채권 정보</th>
                     <th colspan="4" class="bg-pastel-emerald">CD 정보</th>
-                    <th rowspan="2">레버리지</th><th rowspan="2">보수(bp)</th><th rowspan="2">예상수익률</th><th rowspan="2">연간수익(억)</th><th rowspan="2">관리</th>
+                    <th rowspan="2">레버리지</th><th rowspan="2">레포금리</th><th rowspan="2">보수(bp)</th><th rowspan="2">예상수익률</th><th rowspan="2">연간수익(억)</th><th rowspan="2">관리</th>
                 </tr>
                 <tr class="bg-slate-100">
                     <th class="bg-pastel-blue">규모</th><th class="bg-pastel-blue">금리</th><th class="bg-pastel-blue">MD</th><th class="bg-pastel-blue">PVBP</th>
@@ -44,19 +44,13 @@
     </div>
 
     <script>
-
-// 페이지 로드 시 관리자 여부 확인
     (function() {
         const loginId = localStorage.getItem('login_id');
-        // 'admin' 계정이 아니면 로그인 페이지로 강제 이동
         if (loginId !== 'admin') {
             alert("관리자 전용 페이지입니다. 로그인 후 이용해주세요.");
             window.location.href = 'index.html';
         }
     })();
-    
-// 이후 기존 로직들...
-
 
         const SUPABASE_URL = 'https://hnxvsopwxiamexnxczhj.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_1_9-bKTcV3sBQkv10ru__w_iW-51pKt';
@@ -79,7 +73,7 @@
             let html = '', sums = { 
                 size:0, equity:0, bA:0, bP:0, cA:0, cP:0, prof:0,
                 weightedEquity:0, weightedBRate:0, weightedBDur:0, weightedCRate:0, weightedCDur:0,
-                weightedLev:0, weightedFee:0, weightedRet:0
+                weightedFee:0, weightedRepo:0, totalWeightedReturn: 0, weightedLeverage: 0
             };
             
             const totalSize = currentFunds.reduce((a, f) => a + f.fund_size, 0);
@@ -100,25 +94,28 @@
                 const cDur = cA > 0 ? c.reduce((a,i) => a + i.duration*i.amount, 0)/cA : 0;
 
                 const equityAmt = f.fund_size * (f.equity_rate / 100);
-                // 새로운 레버리지 공식 적용
                 const lev = equityAmt > 0 ? (bA + cA - equityAmt) / equityAmt : 0;
                 
-                const prof = (bA * bRate/100 + cA * cRate/100 - lev * equityAmt * (f.repo_rate/100)) - (f.fee_bp / 10000 * f.fund_size);
-                const ret = f.fund_size > 0 ? (prof / f.fund_size) * 100 : 0;
+                // 수정된 수익률 로직: (채권*금리 + CD*금리 - 레버리지*수익자분*레포금리)/수익자분 - 보수
+                const ret = equityAmt > 0 ? ((bA * bRate/100 + cA * cRate/100 - lev * equityAmt * (f.repo_rate/100)) / equityAmt) - (f.fee_bp / 10000) : 0;
+                const prof = ret * equityAmt;
 
                 const weight = f.fund_size / totalSize;
+                
                 sums.size += f.fund_size; sums.equity += equityAmt; sums.bA += bA; sums.bP += bPvbp; sums.cA += cA; sums.cP += cPvbp; sums.prof += prof;
                 sums.weightedEquity += f.equity_rate * weight;
                 sums.weightedBRate += bRate * weight; sums.weightedBDur += bDur * weight;
                 sums.weightedCRate += cRate * weight; sums.weightedCDur += cDur * weight;
-                sums.weightedLev += lev * 100 * weight; sums.weightedFee += f.fee_bp * weight; sums.weightedRet += ret * weight;
+                sums.weightedFee += f.fee_bp * weight; sums.weightedRepo += f.repo_rate * weight;
+                sums.weightedLeverage += lev * weight; // 가중평균 레버리지
+                sums.totalWeightedReturn += ret * weight; // 펀드 규모 기준 가중평균 수익률
 
                 html += `<tr>
                     <td class="text-center">${f.company || '-'}</td><td class="font-bold">${f.fund_name}</td>
                     <td class="num">${format(f.fund_size)}</td><td class="num">${f.equity_rate}%</td><td class="num">${format(equityAmt)}</td>
                     <td class="num bg-pastel-blue">${format(bA)}</td><td class="num bg-pastel-blue">${bRate.toFixed(2)}%</td><td class="num bg-pastel-blue">${bDur.toFixed(2)}</td><td class="num bg-pastel-blue">${bPvbp.toFixed(2)}</td>
                     <td class="num bg-pastel-emerald">${format(cA)}</td><td class="num bg-pastel-emerald">${cRate.toFixed(2)}%</td><td class="num bg-pastel-emerald">${cDur.toFixed(2)}</td><td class="num bg-pastel-emerald">${cPvbp.toFixed(2)}</td>
-                    <td class="num">${(lev*100).toFixed(1)}%</td><td class="num">${f.fee_bp}</td><td class="num font-bold">${ret.toFixed(2)}%</td><td class="num font-bold">${prof.toFixed(2)}</td>
+                    <td class="num">${(lev*100).toFixed(1)}%</td><td class="num">${f.repo_rate.toFixed(2)}%</td><td class="num">${f.fee_bp}</td><td class="num font-bold">${(ret*100).toFixed(2)}%</td><td class="num font-bold">${prof.toFixed(2)}</td>
                     <td class="text-center"><button onclick="deleteFund(${idx})" class="text-red-400 font-bold hover:text-red-600">삭제</button></td>
                 </tr>`;
             });
@@ -129,7 +126,7 @@
                 <td class="num">${sums.weightedEquity.toFixed(1)}%</td><td class="num">${format(sums.equity)}</td>
                 <td class="num">${format(sums.bA)}</td><td class="num">${sums.weightedBRate.toFixed(2)}%</td><td class="num">${sums.weightedBDur.toFixed(2)}</td><td class="num">${sums.bP.toFixed(2)}</td>
                 <td class="num">${format(sums.cA)}</td><td class="num">${sums.weightedCRate.toFixed(2)}%</td><td class="num">${sums.weightedCDur.toFixed(2)}</td><td class="num">${sums.cP.toFixed(2)}</td>
-                <td class="num">${sums.weightedLev.toFixed(1)}%</td><td class="num">${sums.weightedFee.toFixed(1)}</td><td class="num">${sums.weightedRet.toFixed(2)}%</td><td class="num">${sums.prof.toFixed(2)}</td><td></td>
+                <td class="num">${(sums.weightedLeverage*100).toFixed(1)}%</td><td class="num">${sums.weightedRepo.toFixed(2)}%</td><td class="num">${sums.weightedFee.toFixed(1)}</td><td class="num font-bold">${(sums.totalWeightedReturn*100).toFixed(2)}%</td><td class="num">${sums.prof.toFixed(2)}</td><td></td>
             </tr>`;
         }
 
