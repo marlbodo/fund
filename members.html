@@ -2,139 +2,137 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>운용사 계정 관리</title>
+    <title>관리자 대시보드</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
+    <style>
+        body { background-color: #f8fafc; color: #334155; font-family: 'Pretendard', sans-serif; font-size: 12px; }
+        .bg-pastel-blue { background-color: #eff6ff; }
+        .bg-pastel-emerald { background-color: #ecfdf5; }
+        .num { text-align: right; font-variant-numeric: tabular-nums; }
+        table { border-collapse: separate; border-spacing: 0; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px 12px; }
+        th { background-color: #f8fafc; font-weight: 700; }
+    </style>
+</head>
+<body class="p-6">
 
-// 페이지 로드 시 관리자 여부 확인
+    <header class="mb-6 flex justify-between items-center bg-white p-6 rounded-2xl border shadow-sm">
+        <h1 class="text-xl font-black text-slate-800 cursor-pointer" onclick="location.reload()">관리자 대시보드</h1>
+        <div class="space-x-2">
+            <a href="members.html" class="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl font-bold text-xs">회원관리</a>
+            <button onclick="logout()" class="bg-red-50 text-red-700 px-4 py-2 rounded-xl font-bold text-xs">로그아웃</button>
+        </div>
+    </header>
+
+    <div class="bg-white p-6 rounded-2xl border shadow-sm overflow-x-auto">
+        <table class="w-full">
+            <thead>
+                <tr class="bg-slate-100">
+                    <th rowspan="2">운용사</th><th rowspan="2">펀드명</th><th rowspan="2">규모(억)</th><th rowspan="2">지분율</th><th rowspan="2">수익자분</th>
+                    <th colspan="4" class="bg-pastel-blue">채권 정보</th>
+                    <th colspan="4" class="bg-pastel-emerald">CD 정보</th>
+                    <th rowspan="2">레버리지</th><th rowspan="2">레포금리</th><th rowspan="2">보수(bp)</th><th rowspan="2">예상수익률</th><th rowspan="2">연간수익(억)</th><th rowspan="2">관리</th>
+                </tr>
+                <tr class="bg-slate-100">
+                    <th class="bg-pastel-blue">규모</th><th class="bg-pastel-blue">금리</th><th class="bg-pastel-blue">MD</th><th class="bg-pastel-blue">PVBP</th>
+                    <th class="bg-pastel-emerald">규모</th><th class="bg-pastel-emerald">금리</th><th class="bg-pastel-emerald">MD</th><th class="bg-pastel-emerald">PVBP</th>
+                </tr>
+            </thead>
+            <tbody id="dashboardBody"></tbody>
+            <tfoot id="totalFooter" class="bg-slate-800 text-white font-black"></tfoot>
+        </table>
+    </div>
+
+    <script>
     (function() {
         const loginId = localStorage.getItem('login_id');
-        // 'admin' 계정이 아니면 로그인 페이지로 강제 이동
         if (loginId !== 'admin') {
             alert("관리자 전용 페이지입니다. 로그인 후 이용해주세요.");
             window.location.href = 'index.html';
         }
     })();
-    
-// 이후 기존 로직들...
-
-
 
         const SUPABASE_URL = 'https://hnxvsopwxiamexnxczhj.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_1_9-bKTcV3sBQkv10ru__w_iW-51pKt';
+        const headers = { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` };
+        
+        let currentFunds = [];
+        let currentAssets = [];
 
-     
-        // 2. 공통 DB 요청 함수
-        async function dbRequest(table, method, body = null, query = "") {
-            const url = `${SUPABASE_URL}/rest/v1/${table}${query}`;
-            const options = {
-                method,
-                headers: {
-                    "apikey": SUPABASE_KEY,
-                    "Authorization": `Bearer ${SUPABASE_KEY}`,
-                    "Content-Type": "application/json",
-                    "Prefer": "return=representation"
-                }
-            };
-            if (body) options.body = JSON.stringify(body);
-            const res = await fetch(url, options);
-            if (!res.ok) throw new Error(await res.text());
-            return await res.json();
-        }
-    </script>
-</head>
-<body class="bg-gray-100 min-h-screen p-8">
-
-    <header class="mb-8 flex justify-between items-center">
-        <h1 class="text-2xl font-black">운용사 계정 관리</h1>
-        <a href="admin.html" class="text-sm font-bold text-gray-500 hover:text-black transition-all">대시보드로 돌아가기</a>
-    </header>
-
-    <div class="bg-white p-6 rounded-2xl border shadow-sm mb-8">
-        <h2 class="font-bold mb-4" id="formTitle">신규 운용사 등록</h2>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <input type="hidden" id="editId">
-            <input type="text" id="compName" placeholder="운용사명" class="p-2 border rounded text-sm">
-            <input type="text" id="userId" placeholder="ID" class="p-2 border rounded text-sm">
-            <input type="text" id="userPw" placeholder="비밀번호" class="p-2 border rounded text-sm">
-            <button onclick="saveCompany()" class="bg-blue-600 text-white rounded font-bold text-sm hover:bg-blue-700">저장하기</button>
-        </div>
-    </div>
-
-    <div class="bg-white p-6 rounded-2xl border shadow-sm">
-        <table class="w-full text-center border-collapse text-sm">
-            <thead>
-                <tr class="bg-gray-50 border-b">
-                    <th class="p-3">운용사명</th>
-                    <th class="p-3">ID</th>
-                    <th class="p-3">비밀번호</th>
-                    <th class="p-3">관리</th>
-                </tr>
-            </thead>
-            <tbody id="compTableBody"></tbody>
-        </table>
-    </div>
-
-    <script>
-
-        async function loadCompanies() {
-            try {
-                const companies = await dbRequest('repo_users', 'GET');
-                const tbody = document.getElementById('compTableBody');
-                tbody.innerHTML = companies.map(c => `
-                    <tr class="border-b">
-                        <td class="p-3">${c.company_name}</td>
-                        <td class="p-3">${c.user_id}</td>
-                        <td class="p-3">${c.user_pw}</td>
-                        <td class="p-3">
-                            <button onclick="editMode(${c.id}, '${c.company_name}', '${c.user_id}', '${c.user_pw}')" class="text-blue-500 mr-4 font-bold">수정</button>
-                            <button onclick="deleteCompany(${c.id})" class="text-red-500 font-bold">삭제</button>
-                        </td>
-                    </tr>
-                `).join('');
-            } catch (e) {
-                console.error("데이터 로드 실패:", e);
-            }
+        async function initDashboard() {
+            [currentFunds, currentAssets] = await Promise.all([
+                fetch(`${SUPABASE_URL}/rest/v1/repo_funds`, { headers }).then(r => r.json()),
+                fetch(`${SUPABASE_URL}/rest/v1/repo_assets`, { headers }).then(r => r.json())
+            ]);
+            renderTable();
         }
 
-        async function saveCompany() {
-            const id = document.getElementById('editId').value;
-            const data = {
-                company_name: document.getElementById('compName').value,
-                user_id: document.getElementById('userId').value,
-                user_pw: document.getElementById('userPw').value
+        function format(num, dec=1) { return num.toLocaleString(undefined, {minimumFractionDigits: dec, maximumFractionDigits: dec}); }
+
+        function renderTable() {
+            let html = '', sums = { 
+                size:0, equity:0, bA:0, bP:0, cA:0, cP:0, prof:0,
+                weightedEquity:0, weightedBRate:0, weightedBDur:0, weightedCRate:0, weightedCDur:0,
+                weightedFee:0, weightedRepo:0, totalWeightedReturn: 0, weightedLeverage: 0
             };
             
-            if (!data.company_name || !data.user_id || !data.user_pw) return alert("모든 항목을 입력하세요.");
+            const totalSize = currentFunds.reduce((a, f) => a + f.fund_size, 0);
 
-            try {
-                if (id) {
-                    await dbRequest('repo_users', 'PATCH', data, `?id=eq.${id}`);
-                } else {
-                    await dbRequest('repo_users', 'POST', data);
-                }
-                location.reload();
-            } catch (e) {
-                alert("저장 실패: " + e.message);
-            }
+            currentFunds.sort((a,b) => (a.company || "").localeCompare(b.company || "") || a.fund_name.localeCompare(b.fund_name))
+            .forEach((f, idx) => {
+                const b = currentAssets.filter(a => a.fund_name === f.fund_name && a.asset_type === '채권');
+                const c = currentAssets.filter(a => a.fund_name === f.fund_name && a.asset_type === 'CD');
+                
+                const bA = b.reduce((a,i) => a + i.amount, 0);
+                const cA = c.reduce((a,i) => a + i.amount, 0);
+                const bPvbp = b.reduce((a,i) => a + (i.amount * i.duration / 10000), 0);
+                const cPvbp = c.reduce((a,i) => a + (i.amount * i.duration / 10000), 0);
+                
+                const bRate = bA > 0 ? b.reduce((a,i) => a + i.rate*i.amount, 0)/bA : 0;
+                const bDur = bA > 0 ? b.reduce((a,i) => a + i.duration*i.amount, 0)/bA : 0;
+                const cRate = cA > 0 ? c.reduce((a,i) => a + i.rate*i.amount, 0)/cA : 0;
+                const cDur = cA > 0 ? c.reduce((a,i) => a + i.duration*i.amount, 0)/cA : 0;
+
+                const equityAmt = f.fund_size * (f.equity_rate / 100);
+                const lev = equityAmt > 0 ? (bA + cA - equityAmt) / equityAmt : 0;
+                
+                // 수정된 수익률 로직: (채권*금리 + CD*금리 - 레버리지*수익자분*레포금리)/수익자분 - 보수
+                const ret = equityAmt > 0 ? ((bA * bRate/100 + cA * cRate/100 - lev * equityAmt * (f.repo_rate/100)) / equityAmt) - (f.fee_bp / 10000) : 0;
+                const prof = ret * equityAmt;
+
+                const weight = f.fund_size / totalSize;
+                
+                sums.size += f.fund_size; sums.equity += equityAmt; sums.bA += bA; sums.bP += bPvbp; sums.cA += cA; sums.cP += cPvbp; sums.prof += prof;
+                sums.weightedEquity += f.equity_rate * weight;
+                sums.weightedBRate += bRate * weight; sums.weightedBDur += bDur * weight;
+                sums.weightedCRate += cRate * weight; sums.weightedCDur += cDur * weight;
+                sums.weightedFee += f.fee_bp * weight; sums.weightedRepo += f.repo_rate * weight;
+                sums.weightedLeverage += lev * weight; // 가중평균 레버리지
+                sums.totalWeightedReturn += ret * weight; // 펀드 규모 기준 가중평균 수익률
+
+                html += `<tr>
+                    <td class="text-center">${f.company || '-'}</td><td class="font-bold">${f.fund_name}</td>
+                    <td class="num">${format(f.fund_size)}</td><td class="num">${f.equity_rate}%</td><td class="num">${format(equityAmt)}</td>
+                    <td class="num bg-pastel-blue">${format(bA)}</td><td class="num bg-pastel-blue">${bRate.toFixed(2)}%</td><td class="num bg-pastel-blue">${bDur.toFixed(2)}</td><td class="num bg-pastel-blue">${bPvbp.toFixed(2)}</td>
+                    <td class="num bg-pastel-emerald">${format(cA)}</td><td class="num bg-pastel-emerald">${cRate.toFixed(2)}%</td><td class="num bg-pastel-emerald">${cDur.toFixed(2)}</td><td class="num bg-pastel-emerald">${cPvbp.toFixed(2)}</td>
+                    <td class="num">${(lev*100).toFixed(1)}%</td><td class="num">${f.repo_rate.toFixed(2)}%</td><td class="num">${f.fee_bp}</td><td class="num font-bold">${(ret*100).toFixed(2)}%</td><td class="num font-bold">${prof.toFixed(2)}</td>
+                    <td class="text-center"><button onclick="deleteFund(${idx})" class="text-red-400 font-bold hover:text-red-600">삭제</button></td>
+                </tr>`;
+            });
+
+            document.getElementById('dashboardBody').innerHTML = html;
+            document.getElementById('totalFooter').innerHTML = `<tr>
+                <td colspan="2">가중평균/합계</td><td class="num">${format(sums.size)}</td>
+                <td class="num">${sums.weightedEquity.toFixed(1)}%</td><td class="num">${format(sums.equity)}</td>
+                <td class="num">${format(sums.bA)}</td><td class="num">${sums.weightedBRate.toFixed(2)}%</td><td class="num">${sums.weightedBDur.toFixed(2)}</td><td class="num">${sums.bP.toFixed(2)}</td>
+                <td class="num">${format(sums.cA)}</td><td class="num">${sums.weightedCRate.toFixed(2)}%</td><td class="num">${sums.weightedCDur.toFixed(2)}</td><td class="num">${sums.cP.toFixed(2)}</td>
+                <td class="num">${(sums.weightedLeverage*100).toFixed(1)}%</td><td class="num">${sums.weightedRepo.toFixed(2)}%</td><td class="num">${sums.weightedFee.toFixed(1)}</td><td class="num font-bold">${(sums.totalWeightedReturn*100).toFixed(2)}%</td><td class="num">${sums.prof.toFixed(2)}</td><td></td>
+            </tr>`;
         }
 
-        function editMode(id, name, uid, pw) {
-            document.getElementById('editId').value = id;
-            document.getElementById('compName').value = name;
-            document.getElementById('userId').value = uid;
-            document.getElementById('userPw').value = pw;
-            document.getElementById('formTitle').innerText = "운용사 정보 수정";
-        }
-
-        async function deleteCompany(id) {
-            if(!confirm("삭제하시겠습니까?")) return;
-            await dbRequest('repo_users', 'DELETE', null, `?id=eq.${id}`);
-            location.reload();
-        }
-
-        loadCompanies();
+        window.deleteFund = (idx) => { currentFunds.splice(idx, 1); renderTable(); };
+        function logout() { localStorage.clear(); window.location.href = 'index.html'; }
+        window.onload = initDashboard;
     </script>
 </body>
 </html>
