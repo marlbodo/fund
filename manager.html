@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>운용사 펀드 관리</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <style>
+        body { font-family: 'Pretendard', sans-serif; }
+        textarea { resize: vertical; tab-size: 4; outline: none; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-6">
+
+    <header class="mb-6 flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm">
+        <div class="flex items-center space-x-3">
+            <h1 class="text-xl font-black tracking-tight text-gray-900 cursor-pointer" onclick="location.reload()">운용사 펀드 관리</h1>
+            <span id="headerUserBadge" class="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">로딩중...</span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <input type="password" id="newPasswordInput" placeholder="새 비밀번호" class="p-2 border-2 border-gray-200 rounded-xl text-xs w-32">
+            <button onclick="changePassword()" class="bg-gray-800 text-white px-3 py-2 rounded-xl font-bold text-xs">비밀번호 변경</button>
+            <button onclick="handleLogout()" class="text-gray-400 text-xs">로그아웃</button>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="space-y-6">
+            <div class="bg-white p-6 rounded-2xl border shadow-sm">
+                <h2 class="font-black mb-6 text-gray-900 text-sm">1. 신규 펀드 생성</h2>
+                <div class="space-y-4">
+                    <div class="grid grid-cols-5 items-center gap-2">
+                        <label class="col-span-2 text-[11px] font-bold text-gray-600">펀드명</label>
+                        <input type="text" id="fundName" class="col-span-3 p-2 border-2 rounded-lg text-xs">
+                    </div>
+                    <div class="grid grid-cols-5 items-center gap-2">
+                        <label class="col-span-2 text-[11px] font-bold text-gray-600">펀드 규모(억)</label>
+                        <input type="number" id="fundSize" class="col-span-3 p-2 border-2 rounded-lg text-xs">
+                    </div>
+                    <div class="grid grid-cols-5 items-center gap-2">
+                        <label class="col-span-2 text-[11px] font-bold text-gray-600">총보수(bp)</label>
+                        <input type="number" id="feeBp" class="col-span-3 p-2 border-2 rounded-lg text-xs">
+                    </div>
+                    <div class="grid grid-cols-5 items-center gap-2">
+                        <label class="col-span-2 text-[11px] font-bold text-gray-600">지분율(%)</label>
+                        <input type="number" id="equityRate" class="col-span-3 p-2 border-2 rounded-lg text-xs">
+                    </div>
+                    <button onclick="createNewFund()" class="w-full bg-black text-white font-black py-3 rounded-xl text-sm mt-4">펀드 개설</button>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border shadow-sm">
+                <h2 class="font-black mb-4 text-gray-900 text-sm">기존 펀드 리스트</h2>
+                <ul id="fundList" class="space-y-3 divide-y text-sm"></ul>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2 space-y-6">
+            <div class="bg-white p-6 rounded-2xl border shadow-sm">
+                <h2 class="font-black mb-4 text-gray-900 text-sm">2. 자산명세부 입력 <span id="currentFundTitle" class="text-blue-600 ml-2"></span></h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <textarea id="bondTextarea" oninput="processData()" class="p-3 border-2 border-blue-200 rounded-xl h-32 text-xs" placeholder="[채권] 종목명 금액 금리 듀레이션"></textarea>
+                    <textarea id="cdTextarea" oninput="processData()" class="p-3 border-2 border-emerald-200 rounded-xl h-32 text-xs" placeholder="[CD] 종목명 금액 금리 듀레이션"></textarea>
+                </div>
+                <div class="mt-4 flex justify-between items-center p-3 bg-gray-50 border rounded-xl">
+                    <div class="flex items-center gap-2">
+                        <label class="text-[10px] font-bold text-gray-500 whitespace-nowrap">Repo 조달 금리(%) (중개수수료 포함)</label>
+                        <input type="number" id="repoRate" oninput="processData()" value="2.55" class="p-2 border-2 rounded-lg text-xs w-20" step="0.01">
+                    </div>
+                    <div class="text-xs font-bold text-gray-600 text-right">
+                        <p>레버리지비율: <span id="lblLeverage" class="text-purple-600">0%</span> | 예상수익률: <span id="lblReturn" class="text-blue-600">0%</span></p>
+                    </div>
+                    <button onclick="saveAssetSpecs()" class="bg-blue-600 text-white font-bold px-6 py-3 rounded-xl text-xs">자산명세 저장하기</button>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl border shadow-sm">
+                <h3 class="text-xs font-bold text-blue-600 mb-2">📊 채권 명세 현황</h3>
+                <table class="w-full text-center border text-[11px]"><thead class="bg-gray-50 font-bold"><tr><th class="p-2 border">종목명</th><th class="p-2 border">펀드금액</th><th class="p-2 border">지분율</th><th class="p-2 border">수익자분</th><th class="p-2 border">금리</th><th class="p-2 border">듀레이션</th></tr></thead><tbody id="bondTableBody"></tbody></table>
+                <h3 class="text-xs font-bold text-emerald-600 mt-6 mb-2">📊 CD 명세 현황</h3>
+                <table class="w-full text-center border text-[11px]"><thead class="bg-gray-50 font-bold"><tr><th class="p-2 border">종목명</th><th class="p-2 border">펀드금액</th><th class="p-2 border">지분율</th><th class="p-2 border">수익자분</th><th class="p-2 border">금리</th><th class="p-2 border">듀레이션</th></tr></thead><tbody id="cdTableBody"></tbody></table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://hnxvsopwxiamexnxczhj.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_1_9-bKTcV3sBQkv10ru__w_iW-51pKt';
+        let loginId = localStorage.getItem('login_id') || 'vi';
+        let userCompany = ''; 
+        const headers = { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", "Prefer": "return=representation" };
+
+        function parseLine(line) {
+            const parts = line.trim().split(/[\t,/ ]+/);
+            if (parts.length < 4) return null;
+            return { name: parts[0], amt: Number(parts[1]), rate: Number(parts[2]), dur: Number(parts[3]) };
+        }
+
+        async function processData() {
+            const equityRateVal = Number(document.getElementById('equityRate').value) || 33;
+            const equityRate = equityRateVal / 100;
+            const fundSize = Number(document.getElementById('fundSize').value) || 1;
+            const repoRate = Number(document.getElementById('repoRate').value) || 0;
+            const feeBp = Number(document.getElementById('feeBp').value) || 0;
+
+            let totalAssetAmt = 0, totalEquityAmt = 0, weightedRateSum = 0, weightedDurSum = 0;
+
+            const calc = (taId, bodyId) => {
+                const lines = document.getElementById(taId).value.split('\n');
+                let html = '', subTotalAmt = 0, subEquityAmt = 0, subWeightedRate = 0, subWeightedDur = 0;
+                lines.forEach(l => {
+                    const d = parseLine(l);
+                    if(d) {
+                        const equityAmt = d.amt * equityRate;
+                        subTotalAmt += d.amt; subEquityAmt += equityAmt;
+                        subWeightedRate += d.amt * d.rate; subWeightedDur += d.amt * d.dur;
+                        html += `<tr class="border-b"><td>${d.name}</td><td>${d.amt}</td><td>${equityRateVal}%</td><td>${equityAmt.toFixed(1)}</td><td>${d.rate}%</td><td>${d.dur}</td></tr>`;
+                    }
+                });
+                if(subTotalAmt > 0) {
+                    totalAssetAmt += subTotalAmt; totalEquityAmt += subEquityAmt;
+                    weightedRateSum += subWeightedRate; weightedDurSum += subWeightedDur;
+                    html += `<tr class="bg-gray-100 font-bold"><td>합계</td><td>${subTotalAmt}</td><td>${equityRateVal}%</td><td>${subEquityAmt.toFixed(1)}</td><td>${(subWeightedRate/subTotalAmt).toFixed(2)}%</td><td>${(subWeightedDur/subTotalAmt).toFixed(2)}</td></tr>`;
+                }
+                document.getElementById(bodyId).innerHTML = html;
+            };
+
+            calc('bondTextarea', 'bondTableBody'); calc('cdTextarea', 'cdTableBody');
+            
+            const leverage = Math.max(0, (totalAssetAmt - fundSize) / fundSize);
+            document.getElementById('lblLeverage').innerText = `${(leverage * 100).toFixed(1)}%`;
+            
+            if (fundSize > 0) {
+                const ret = ((weightedRateSum) - (leverage * fundSize * repoRate)) / fundSize - (feeBp / 100);
+                document.getElementById('lblReturn').innerText = `${ret.toFixed(2)}%`;
+            }
+        }
+
+        async function initPage() {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/repo_users?user_id=eq.${loginId}`, { headers });
+            const data = await res.json();
+            if(data.length > 0) {
+                userCompany = data[0].company_name || '운용사 미등록';
+                document.getElementById('headerUserBadge').innerText = `${userCompany}(${loginId})`;
+            }
+            refreshFundList();
+        }
+
+        async function refreshFundList() {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/repo_funds?user_id=eq.${loginId}`, { headers });
+            const data = await res.json();
+            document.getElementById('fundList').innerHTML = data.map(item => `
+                <li class="flex justify-between items-center py-2">
+                    <span class="cursor-pointer hover:text-blue-600 font-bold" onclick="loadFund('${item.fund_name}')">${item.fund_name}</span>
+                    <button onclick="deleteFund('${item.fund_name}')" class="text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded">삭제</button>
+                </li>`).join('');
+        }
+
+        async function deleteFund(name) {
+            if(!confirm(`'${name}' 펀드를 삭제하시겠습니까?`)) return;
+            await fetch(`${SUPABASE_URL}/rest/v1/repo_assets?fund_name=eq.${encodeURIComponent(name)}`, { method: 'DELETE', headers });
+            await fetch(`${SUPABASE_URL}/rest/v1/repo_funds?fund_name=eq.${encodeURIComponent(name)}`, { method: 'DELETE', headers });
+            alert("삭제되었습니다.");
+            refreshFundList();
+        }
+
+        async function loadFund(name) {
+            document.getElementById('currentFundTitle').innerText = `[${name}]`;
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/repo_funds?fund_name=eq.${encodeURIComponent(name)}`, { headers });
+            const data = await res.json();
+            if(!data.length) return;
+            const f = data[0];
+            document.getElementById('fundName').value = f.fund_name;
+            document.getElementById('fundSize').value = f.fund_size;
+            document.getElementById('feeBp').value = f.fee_bp;
+            document.getElementById('equityRate').value = f.equity_rate;
+            if(f.repo_rate) document.getElementById('repoRate').value = f.repo_rate;
+            
+            const aRes = await fetch(`${SUPABASE_URL}/rest/v1/repo_assets?fund_name=eq.${encodeURIComponent(name)}`, { headers });
+            const assets = await aRes.json();
+            document.getElementById('bondTextarea').value = assets.filter(a => a.asset_type === '채권').map(a => `${a.asset_name} ${a.amount / (f.equity_rate/100)} ${a.rate} ${a.duration}`).join('\n');
+            document.getElementById('cdTextarea').value = assets.filter(a => a.asset_type === 'CD').map(a => `${a.asset_name} ${a.amount / (f.equity_rate/100)} ${a.rate} ${a.duration}`).join('\n');
+            processData();
+        }
+
+        async function createNewFund() {
+            const payload = { 
+                user_id: loginId, 
+                company: userCompany, 
+                fund_name: document.getElementById('fundName').value, 
+                fund_size: Number(document.getElementById('fundSize').value), 
+                fee_bp: Number(document.getElementById('feeBp').value), 
+                equity_rate: Number(document.getElementById('equityRate').value),
+                repo_rate: 2.55 
+            };
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/repo_funds`, { method: 'POST', headers, body: JSON.stringify(payload) });
+            if(res.ok) { refreshFundList(); alert("개설 완료"); }
+            else { const err = await res.json(); alert("생성 실패: " + err.message); }
+        }
+
+        async function saveAssetSpecs() {
+            const fundName = document.getElementById('fundName').value;
+            const equityRate = Number(document.getElementById('equityRate').value) / 100;
+            const repoRate = Number(document.getElementById('repoRate').value);
+            
+            await fetch(`${SUPABASE_URL}/rest/v1/repo_funds?fund_name=eq.${encodeURIComponent(fundName)}`, { method: 'PATCH', headers, body: JSON.stringify({ repo_rate: repoRate }) });
+            await fetch(`${SUPABASE_URL}/rest/v1/repo_assets?fund_name=eq.${encodeURIComponent(fundName)}`, { method: 'DELETE', headers });
+            
+            let assetsToSave = [];
+            const save = (id, type) => document.getElementById(id).value.split('\n').forEach(l => { const d = parseLine(l); if(d) assetsToSave.push({user_id: loginId, company: userCompany, fund_name: fundName, asset_type: type, asset_name: d.name, amount: d.amt * equityRate, rate: d.rate, duration: d.dur}); });
+            save('bondTextarea', '채권'); save('cdTextarea', 'CD');
+            await fetch(`${SUPABASE_URL}/rest/v1/repo_assets`, { method: 'POST', headers, body: JSON.stringify(assetsToSave) });
+            alert("저장 성공");
+        }
+
+        async function changePassword() {
+            const newPw = document.getElementById('newPasswordInput').value;
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/repo_users?user_id=eq.${loginId}`, { method: 'PATCH', headers, body: JSON.stringify({ user_pw: newPw }) });
+            if(res.ok) alert("비밀번호 변경 성공!");
+        }
+
+        function handleLogout() { localStorage.clear(); window.location.href = 'index.html'; }
+        window.onload = initPage;
+    </script>
+</body>
+</html>
