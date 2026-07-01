@@ -123,7 +123,7 @@
 
             document.getElementById('dashboardBody').innerHTML = html;
             document.getElementById('totalFooter').innerHTML = `<tr>
-                <td colspan="2">가중평균/합계</td><td class="num">${format(sums.size)}</td>
+                <td class="text-center" colspan="2">가중평균/합계</td><td class="num">${format(sums.size)}</td>
                 <td class="num">${sums.weightedEquity.toFixed(1)}%</td><td class="num">${format(sums.equity)}</td>
                 <td class="num">${format(sums.bA)}</td><td class="num">${sums.weightedBRate.toFixed(2)}%</td><td class="num">${sums.weightedBDur.toFixed(2)}</td><td class="num">${sums.bP.toFixed(2)}</td>
                 <td class="num">${format(sums.cA)}</td><td class="num">${sums.weightedCRate.toFixed(2)}%</td><td class="num">${sums.weightedCDur.toFixed(2)}</td><td class="num">${sums.cP.toFixed(2)}</td>
