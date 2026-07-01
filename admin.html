@@ -25,14 +25,14 @@
         </div>
     </header>
 
-    <div class="bg-white p-6 rounded-2xl border shadow-sm overflow-x-auto">
+    <div class="bg-white p-6 rounded-2xl border shadow-sm overflow-x-auto mb-6">
         <table class="w-full">
             <thead>
                 <tr class="bg-slate-100">
                     <th rowspan="2">운용사</th><th rowspan="2">펀드명</th><th rowspan="2">규모(억)</th><th rowspan="2">지분율</th><th rowspan="2">수익자분</th>
                     <th colspan="4" class="bg-pastel-blue">채권 정보</th>
                     <th colspan="4" class="bg-pastel-emerald">CD 정보</th>
-                    <th rowspan="2">레버리지</th><th rowspan="2">레포금리</th><th rowspan="2">보수(bp)</th><th rowspan="2">예상수익률</th><th rowspan="2">연간수익(억)</th><th rowspan="2">관리</th>
+                    <th rowspan="2">레버리지</th><th rowspan="2">레포금리</th><th rowspan="2">보수(bp)</th><th rowspan="2">예상수익률</th><th rowspan="2">연간수익(억)</th><th rowspan="2">펀드명세</th><th rowspan="2">관리</th>
                 </tr>
                 <tr class="bg-slate-100">
                     <th class="bg-pastel-blue">금액(억)</th><th class="bg-pastel-blue">금리</th><th class="bg-pastel-blue">MD</th><th class="bg-pastel-blue">PVBP</th>
@@ -42,6 +42,11 @@
             <tbody id="dashboardBody"></tbody>
             <tfoot id="totalFooter" class="bg-slate-100 text-blue-900 font-black"></tfoot>
         </table>
+    </div>
+
+    <div id="detailSection" class="bg-white p-6 rounded-2xl border shadow-sm hidden">
+        <h2 class="text-lg font-bold mb-4" id="detailTitle">펀드 상세 내역</h2>
+        <div id="detailContent" class="grid grid-cols-2 gap-6"></div>
     </div>
 
     <script>
@@ -69,6 +74,10 @@
         }
 
         function format(num, dec=1) { return num.toLocaleString(undefined, {minimumFractionDigits: dec, maximumFractionDigits: dec}); }
+        function formatDate(isoStr) {
+            const d = new Date(isoStr);
+            return `${d.getMonth()+1}.${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+        }
 
         function renderTable() {
             let html = '', sums = { 
@@ -96,8 +105,6 @@
 
                 const equityAmt = f.fund_size * (f.equity_rate / 100);
                 const lev = equityAmt > 0 ? (bA + cA - equityAmt) / equityAmt : 0;
-                
-                // 수정된 수익률 로직: (채권*금리 + CD*금리 - 레버리지*수익자분*레포금리)/수익자분 - 보수
                 const ret = equityAmt > 0 ? ((bA * bRate/100 + cA * cRate/100 - lev * equityAmt * (f.repo_rate/100)) / equityAmt) - (f.fee_bp / 10000) : 0;
                 const prof = ret * equityAmt;
 
@@ -108,8 +115,8 @@
                 sums.weightedBRate += bRate * weight; sums.weightedBDur += bDur * weight;
                 sums.weightedCRate += cRate * weight; sums.weightedCDur += cDur * weight;
                 sums.weightedFee += f.fee_bp * weight; sums.weightedRepo += f.repo_rate * weight;
-                sums.weightedLeverage += lev * weight; // 가중평균 레버리지
-                sums.totalWeightedReturn += ret * weight; // 펀드 규모 기준 가중평균 수익률
+                sums.weightedLeverage += lev * weight;
+                sums.totalWeightedReturn += ret * weight;
 
                 html += `<tr>
                     <td class="text-center">${f.company || '-'}</td><td class="font-bold">${f.fund_name}</td>
@@ -117,6 +124,7 @@
                     <td class="num bg-pastel-blue">${format(bA)}</td><td class="num bg-pastel-blue">${bRate.toFixed(2)}%</td><td class="num bg-pastel-blue">${bDur.toFixed(2)}</td><td class="num bg-pastel-blue">${bPvbp.toFixed(2)}</td>
                     <td class="num bg-pastel-emerald">${format(cA)}</td><td class="num bg-pastel-emerald">${cRate.toFixed(2)}%</td><td class="num bg-pastel-emerald">${cDur.toFixed(2)}</td><td class="num bg-pastel-emerald">${cPvbp.toFixed(2)}</td>
                     <td class="num">${(lev*100).toFixed(1)}%</td><td class="num">${f.repo_rate.toFixed(2)}%</td><td class="num">${f.fee_bp}</td><td class="num font-bold">${(ret*100).toFixed(2)}%</td><td class="num font-bold">${prof.toFixed(2)}</td>
+                    <td class="text-center"><button onclick="showDetails('${f.fund_name}')" class="text-blue-500 font-bold hover:text-blue-700">내역보기</button></td>
                     <td class="text-center"><button onclick="deleteFund(${idx})" class="text-red-400 font-bold hover:text-red-600">삭제</button></td>
                 </tr>`;
             });
@@ -127,9 +135,41 @@
                 <td class="num">${sums.weightedEquity.toFixed(1)}%</td><td class="num">${format(sums.equity)}</td>
                 <td class="num">${format(sums.bA)}</td><td class="num">${sums.weightedBRate.toFixed(2)}%</td><td class="num">${sums.weightedBDur.toFixed(2)}</td><td class="num">${sums.bP.toFixed(2)}</td>
                 <td class="num">${format(sums.cA)}</td><td class="num">${sums.weightedCRate.toFixed(2)}%</td><td class="num">${sums.weightedCDur.toFixed(2)}</td><td class="num">${sums.cP.toFixed(2)}</td>
-                <td class="num">${(sums.weightedLeverage*100).toFixed(1)}%</td><td class="num">${sums.weightedRepo.toFixed(2)}%</td><td class="num">${sums.weightedFee.toFixed(1)}</td><td class="num font-bold">${(sums.totalWeightedReturn*100).toFixed(2)}%</td><td class="num">${sums.prof.toFixed(2)}</td><td></td>
+                <td class="num">${(sums.weightedLeverage*100).toFixed(1)}%</td><td class="num">${sums.weightedRepo.toFixed(2)}%</td><td class="num">${sums.weightedFee.toFixed(1)}</td><td class="num font-bold">${(sums.totalWeightedReturn*100).toFixed(2)}%</td><td class="num">${sums.prof.toFixed(2)}</td><td></td><td></td>
             </tr>`;
         }
+
+        window.showDetails = (fundName) => {
+            const assets = currentAssets.filter(a => a.fund_name === fundName);
+            const bonds = assets.filter(a => a.asset_type === '채권');
+            const cds = assets.filter(a => a.asset_type === 'CD');
+            
+            const calc = (arr) => {
+                const totalAmt = arr.reduce((a,i) => a + i.amount, 0);
+                const avgRate = totalAmt > 0 ? arr.reduce((a,i) => a + i.rate*i.amount, 0)/totalAmt : 0;
+                const avgDur = totalAmt > 0 ? arr.reduce((a,i) => a + i.duration*i.amount, 0)/totalAmt : 0;
+                return { totalAmt, avgRate, avgDur };
+            };
+
+            const bCalc = calc(bonds);
+            const cCalc = calc(cds);
+
+            let html = `<div><h3 class="font-bold mb-2 text-blue-700">채권 상세</h3>
+            <table class="w-full"><thead><tr><th>채권명</th><th>금액(억)</th><th>금리</th><th>듀레이션</th><th>입력시간</th></tr></thead><tbody>
+            ${bonds.map(i => `<tr><td>${i.asset_name}</td><td class="num">${format(i.amount)}</td><td class="num">${i.rate}%</td><td class="num">${i.duration}</td><td class="text-center">${formatDate(i.created_at)}</td></tr>`).join('')}
+            <tr class="bg-slate-50 font-bold"><td>합계</td><td class="num">${format(bCalc.totalAmt)}</td><td class="num">${bCalc.avgRate.toFixed(2)}%</td><td class="num">${bCalc.avgDur.toFixed(2)}</td><td>-</td></tr>
+            </tbody></table></div>`;
+
+            html += `<div><h3 class="font-bold mb-2 text-emerald-700">CD 상세</h3>
+            <table class="w-full"><thead><tr><th>CD명</th><th>금액(억)</th><th>금리</th><th>듀레이션</th><th>입력시간</th></tr></thead><tbody>
+            ${cds.map(i => `<tr><td>${i.asset_name}</td><td class="num">${format(i.amount)}</td><td class="num">${i.rate}%</td><td class="num">${i.duration}</td><td class="text-center">${formatDate(i.created_at)}</td></tr>`).join('')}
+            <tr class="bg-slate-50 font-bold"><td>합계</td><td class="num">${format(cCalc.totalAmt)}</td><td class="num">${cCalc.avgRate.toFixed(2)}%</td><td class="num">${cCalc.avgDur.toFixed(2)}</td><td>-</td></tr>
+            </tbody></table></div>`;
+
+            document.getElementById('detailTitle').innerText = `${fundName} 펀드 명세`;
+            document.getElementById('detailContent').innerHTML = html;
+            document.getElementById('detailSection').classList.remove('hidden');
+        };
 
         window.deleteFund = (idx) => { currentFunds.splice(idx, 1); renderTable(); };
         function logout() { localStorage.clear(); window.location.href = 'index.html'; }
